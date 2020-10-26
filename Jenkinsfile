@@ -8,6 +8,7 @@ node {
 
 	stage('check java , node , docker , docker-compose')
 	{
+		sh "pwd"
 		sh "java -version"
 		sh "node -v"
 		sh "npm -v"
@@ -21,60 +22,73 @@ node {
 		sh "./gradlew clean --no-daemon"
 	}
 
+	stage('check integration')
+	{
+		try
+		{
+			sh 'docker container inspect docker_catinymessenger-cassandra_node_1'
+			sh 'docker container inspect docker_catinymessenger-cassandra_1'
+			sh 'docker container inspect docker_catinymessenger-redis_1'
+			sh "docker container inspect docker_jhipster-registry_1"
+			sh "docker container inspect docker_zookeeper_1"
+			sh "docker container inspect docker_kafka_1"
+		}
+		catch (ignored)
+		{
+			echo 'the necessary services are not running . try start it'
+			sh "docker-compose -f src/main/docker/app-prod.yml up -d"
+		}
+	}
+
+	stage('check catiny-uaa')
+	{
+		try
+		{
+			sh "docker container inspect docker_catinyuaa-app_1"
+		}
+		catch (err)
+		{
+			echo "docker_jhipster-registry_1 is not running. try start catinyuaa"
+//			sh "docker-compose -f /var/lib/jenkins/workspace/CatinyUAA_master/src/main/docker/catiny-uaa.yml up -d"
+			throw err
+		}
+	}
+
 	stage('nohttp')
 	{
 		sh "./gradlew checkstyleNohttp --no-daemon"
 	}
 
-	stage('check jhipster-registry')
-	{
+	stage('backend tests') {
 		try
 		{
-			sh "docker container inspect docker_jhipster-registry_1"
+			sh "./gradlew test integrationTest -PnodeInstall --no-daemon"
 		}
 		catch (err)
 		{
-			echo "docker_jhipster-registry_1 not running"
-//			sh "docker-compose -f src/main/docker/jhipster-registry-docker.yml up -d"
+			throw err
+		}
+		finally
+		{
+			junit '**/build/**/TEST-*.xml'
 		}
 	}
 
-//  todo
-//	stage('backend tests') {
-//		try
-//		{
-//			sh "./gradlew test integrationTest -PnodeInstall --no-daemon"
-//		}
-//		catch (err)
-//		{
-//			throw err
-//		}
-//		finally
-//		{
-//			junit '**/build/**/TEST-*.xml'
-//		}
-//	}
-
-	stage('packaging') {
-		sh "./gradlew bootJar -x test -Pprod -PnodeInstall --no-daemon"
-		archiveArtifacts artifacts: '**/build/libs/*.jar', fingerprint: true
-	}
-
-//  todo
-//	stage('quality analysis') {
-//		withSonarQubeEnv('catiny-messenger-sonar') {
-//			sh "./gradlew sonarqube --no-daemon"
-//		}
-//	}
-
-	stage('build docker catiny-uaa')
+	stage('build docker catiny-messenger')
 	{
 		sh "./gradlew bootJar -Pprod jibDockerBuild --no-daemon"
 	}
 
-	stage('start docker catiny-uaa')
+	stage('start docker catiny-messenger')
 	{
-		sh "docker-compose -f src/main/docker/app.yml up -d"
+		sh "docker-compose -f src/main/docker/app-prod.yml up -d"
+		sh "docker-compose -f src/main/docker/catiny-messenger.yml up -d"
 		echo "Successful deployment"
+	}
+
+	stage( 'Log display after 200 seconds from running')
+	{
+		sleep(200)
+		sh "docker logs docker_catinymessenger-app_1 --tail 1000"
 	}
 }

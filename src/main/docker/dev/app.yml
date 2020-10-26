@@ -1,0 +1,39 @@
+version: '2'
+services:
+  catinymessenger-app:
+    extends:
+      file: catiny-messenger.yml
+      service: catinymessenger-app
+  catinymessenger-cassandra:
+    extends:
+      file: cassandra-cluster.yml
+      service: catinymessenger-cassandra
+  catinymessenger-cassandra-node:
+    extends:
+      file: cassandra-cluster.yml
+      service: catinymessenger-cassandra-node
+    environment:
+      - CASSANDRA_SEEDS=catinymessenger-cassandra
+  catinymessenger-cassandra-migration:
+    extends:
+      file: ../cassandra-cluster.yml
+      service: catinymessenger-cassandra-migration
+  catinymessenger-redis:
+    extends:
+      file: redis.yml
+      service: catinymessenger-redis
+  kafka:
+    extends:
+      file: kafka.yml
+      service: kafka
+    environment:
+      - KAFKA_ADVERTISED_HOST_NAME=kafka
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+  zookeeper:
+    extends:
+      file: kafka.yml
+      service: zookeeper
+  jhipster-registry:
+    extends:
+      file: jhipster-registry.yml
+      service: jhipster-registry
